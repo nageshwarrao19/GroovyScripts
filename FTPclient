@@ -1,0 +1,40 @@
+/// Below groovy script initialises a FTP Client, retrieves a binary stream of the file and sets it as message body.
+// Replace FTP HOST NAME, USERNAME, PASSWORD, DIRECTORY PATH
+
+import com.sap.gateway.ip.core.customdev.util.Message;
+import org.apache.commons.net.ftp.FTPClient;
+
+
+import java.util.HashMap;
+def Message processData(Message message) {
+def messageLog = messageLogFactory.getMessageLog(message);    
+    
+def ftpClient = new FTPClient()
+ftpClient.connect("FTP HOST NAME")
+ftpClient.enterLocalPassiveMode()
+messageLog.setStringProperty("FTP Server Response", ftpClient.replyString, "text/xml");
+ 
+    
+ftpClient.login("USERNAME","PASSWORD")
+messageLog.setStringProperty("FTP Server Response", ftpClient.replyString, "text/xml");
+ 
+    
+ftpClient.changeWorkingDirectory("DIRECTORY PATH")
+messageLog.setStringProperty("FTP Server Response", ftpClient.replyString, "text/xml");
+ 
+    
+ftpClient.fileType=(FTPClient.BINARY_FILE_TYPE)
+messageLog.setStringProperty("FTP Server Response", ftpClient.replyString, "text/xml");
+   
+   
+ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+ftpClient.retrieveFile("FILENAME", outputStream);
+ftpClient.disconnect()
+
+
+//Body
+def body = message.getBody();
+message.setBody(outputStream.toByteArray());
+
+return message;
+}
