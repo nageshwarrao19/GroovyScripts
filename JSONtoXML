@@ -1,0 +1,175 @@
+/*Below script takes a Proof Of Delivery JSON, validates all the incoming fields and generates a generic XML format to be further mapped into an idoc 
+
+Source JSON =
+{
+    "proofOfDelivery": [
+		{
+			      "consignmentid": "0011394727001",
+            "status": "DELIVERED",
+            "jobCompletedDate": "20201109",
+            "jobCompletedTime": "220152",
+            "url": "http://example.com/sig",
+            "deliveryno": ["0318611592"]        
+		}
+    ]
+}
+
+Target XML = 
+
+<POD>
+  <ConsignmentNumber>0011394727001</ConsignmentNumber>
+  <DeliveryDate>20201109</DeliveryDate>
+  <DeliveryTime>220152</DeliveryTime>
+  <Cost></Cost>
+  <URL>http://example.com/sig</URL>
+  <DelvList>
+    <DeliveryNumber>0318611592</DeliveryNumber>
+  </DelvList>
+</POD>
+
+*/
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.xml.MarkupBuilder;
+import groovy.json.*;
+
+def Message processData(Message message) {
+    
+    def body = message.getBody(String)
+    Map parsedJSON = new JsonSlurper().parseText(body)
+
+    
+
+    def error = true
+    def errorMessage = "NoError"
+    def podXML = ""
+     
+    error = validate(parsedJSON, error, errorMessage)
+
+    if(error[0])
+    {
+            //Setting Error Properties
+            message.setProperty("errorMessage", error[1].toString());                
+    }
+    else {
+            podXML = buildPODXML(parsedJSON)
+            message.setBody(podXML);
+    }
+
+    //Setting Error Properties
+    message.setProperty("error", error[0].toString());
+
+    return message
+}
+
+
+// Function to build POD XML
+def buildPODXML(parsedJSON){
+
+        def consignmentID = parsedJSON.proofOfDelivery?.consignmentid[0]
+        def status = parsedJSON.proofOfDelivery?.status[0]
+        def jobCompletedDate = parsedJSON.proofOfDelivery?.jobCompletedDate[0]
+        def jobCompletedTime = parsedJSON.proofOfDelivery?.jobCompletedTime[0]
+        def url = parsedJSON.proofOfDelivery?.url[0]
+        def deliveryno = parsedJSON.proofOfDelivery?.deliveryno[0]
+
+        //XML Builder
+        def stringWriter = new StringWriter()
+        def podXMLBuilder = new MarkupBuilder(stringWriter)
+        podXMLBuilder.POD {            
+                ConsignmentNumber(consignmentID)
+                DeliveryDate(jobCompletedDate)
+                DeliveryTime(jobCompletedTime)
+                Cost('')
+                URL(url)
+                DelvList{
+                    deliveryno.each{ delivery ->
+                        DeliveryNumber(delivery)
+                    }                
+            }
+        }
+        podXML = stringWriter.toString()
+
+        return podXML
+
+}
+
+
+//Function to validate source JSON Values
+def validate(parsedJSON, error, errorMessage) {
+
+    //Validations
+    if(parsedJSON?.proofOfDelivery)
+    {
+        switch(error){       
+
+            case ((parsedJSON.proofOfDelivery[0] == null)): 
+            errorMessage = "Error - Mandatory value 'proofOfDelivery' is missing !"
+            break; 
+        
+            case ((parsedJSON.proofOfDelivery?.consignmentid[0] == null)): 
+            errorMessage = "Error - Mandatory field 'consignmentid' is missing !"
+            break; 
+
+            case ((parsedJSON.proofOfDelivery?.consignmentid[0] == "")): 
+            errorMessage = "Error - Mandatory field 'consignmentid' is blank !"
+            break;
+
+            case ((parsedJSON.proofOfDelivery?.status[0] == null)): 
+            errorMessage = "Error - Mandatory field 'status' is missing !"
+            break; 
+
+            case ((parsedJSON.proofOfDelivery?.status[0] == "")): 
+            errorMessage = "Error - Mandatory field 'status' is blank !"
+            break;
+
+            case ((parsedJSON.proofOfDelivery?.jobCompletedDate[0] == null)): 
+            errorMessage = "Error - Mandatory field 'jobCompletedDate' is missing !"
+            break; 
+
+            case ((parsedJSON.proofOfDelivery?.jobCompletedDate[0] == "")): 
+            errorMessage = "Error - Mandatory field 'jobCompletedDate' is blank !"
+            break;
+
+            case ((parsedJSON.proofOfDelivery?.jobCompletedTime[0] == null)): 
+            errorMessage = "Error - Mandatory field 'jobCompletedTime' is missing !"
+            break; 
+
+            case ((parsedJSON.proofOfDelivery?.jobCompletedTime[0] == "")): 
+            errorMessage = "Error - Mandatory field 'jobCompletedTime' is blank !"
+            break;
+
+            case (!(parsedJSON.proofOfDelivery?.status[0] in ['DELIVERED','UNDELIVERED'])): 
+            errorMessage = "Error - Mandatory field 'status' can have only one of the value - 'DELIVERED' / 'UNDELIVERED' !"
+            break;
+            
+            case ((parsedJSON.proofOfDelivery?.status[0] == "DELIVERED") && (parsedJSON.proofOfDelivery?.url[0] == null)): 
+            errorMessage = "Error - Field 'url' is missing for a DELIVERED proof of delivery !"
+            break; 
+
+            case ((parsedJSON.proofOfDelivery?.status[0] == "DELIVERED") && (parsedJSON.proofOfDelivery?.url[0] == "")): 
+            errorMessage = "Error - Field 'url' is blank for a DELIVERED proof of delivery !"
+            break;
+
+            case ((parsedJSON.proofOfDelivery?.deliveryno[0] == null)): 
+            errorMessage = "Error - Mandatory field 'deliveryno' is null !"
+            break;
+
+            case ((parsedJSON.proofOfDelivery?.deliveryno[0].toString() == "")): 
+            errorMessage = "Error - Mandatory field 'deliveryno' is blank !"
+            break;
+
+            case ((parsedJSON.proofOfDelivery?.deliveryno == '[]')): 
+            errorMessage = "Error - Mandatory field 'deliveryno' is blank !"
+            break;
+
+            default: 
+            error = false
+            errorMessage = "NoError"
+            break;
+        }
+    }    
+    return [error, errorMessage ]
+}
+
+
