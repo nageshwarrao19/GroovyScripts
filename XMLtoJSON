@@ -1,0 +1,169 @@
+/* Below script transforms the SHPMNT idoc XML into third party tracking solution specific JSON 
+
+Source - SHPMNT idoc XML
+Target - {
+    "jobs": [
+        {
+            "address": {
+                "country": "AU",
+                "locality": "Marsden Park",
+                "postcode": "2765324",
+                "region": "NSW",
+                "streetAddress": "3 Harris Avenue 234",
+                "subStreetAddress": ""
+            },
+            "id": "0324997256",
+            "status": "PENDING",
+            "stopId": "00126135930001",
+            "branchId": "",
+            "fulfiller": "0000414266",
+            "orderType": "DELIVERY",
+            "deliveryDate": "2020-09-07T00:00:00.000Z",
+            "attributes": {
+                "fulfillerName": "Carrier Pty Ltd"
+            },
+            "customer": {
+                "id": "NW00",
+                "email": "customeremail@address",
+                "firstName": "CustomerFname",
+                "lastName": "",
+                "phone": "",
+                "title": ""
+            },
+            "secondaryReference": "",
+            "commsOptOut": "false"
+        }
+    ]
+}
+
+
+
+*/
+
+
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.json.JsonBuilder;
+
+
+def Message processData(Message message) {
+
+    //Body 
+    Reader reader = message.getBody(Reader)
+
+    // Define XML parser for parsing inbound idoc
+    def shpmntIdocXMl = new XmlSlurper().parse(reader)
+
+
+    def stopID, carrier, carrierID, carrierName, delivery, deliveryNo, deliveryType , deliveryDate, deliveryTime,
+    customer, customerID,customerTitle,customerFname,customerLname,customerEmail,customerMobile,customerStreetAddress,
+    customerSubStreetAddress, customerLocality,customerPostcode,customerRegion,customerCountry, 
+    customerCommOpt, secondaryReference, branchID
+
+
+    // Looping over each of E1EDT20 nodes	
+	shpmntIdocXMl.depthFirst().findAll{ node -> (node.name() == 'E1EDT20')}.each
+	{
+
+        stopID = it.TKNUM.text() + it.E1EDK33.TSNUM.text() 
+        
+        carrier = (it.'**'.find{node-> node.name() == 'E1ADRM4' && node.PARTNER_Q == 'SP'})
+        if (carrier)
+        {
+            carrierID = carrier.PARTNER_ID?.text()
+            carrierName = carrier.NAME1?.text()
+        }
+
+        deliveryNo = (it.'**'.find{node-> node.name() == 'E1EDT01'}.VBELN?.text())
+
+        secondaryReference = (it.'**'.find{node-> node.name() == 'E1EDL20'}.LIFEX?.text())
+
+        deliveryType = (it.'**'.find{node-> node.name() == 'E1EDL23'}.LFART_BEZ?.text())
+
+        customer = (it.'**'.find{node-> node.name() == 'E1ADRM1' && node.PARTNER_Q == 'WE'})
+        if (customer)
+        {
+            customerID = customer.PARTNER_ID?.text()
+            customerTitle = customer.FORMOFADDR?.text()
+            customerFname = customer.NAME1?.text()
+            customerLname = customer.NAME2?.text()
+            customerMobile = customer.TELEPHONE2?.text()
+            customerEmail = customer.E_MAIL?.text()
+            customerStreetAddress = customer.STREET1?.text()
+            customerSubStreetAddress = customer.STREET2?.text()
+            customerLocality = customer.CITY1?.text()
+            customerPostcode = customer.POSTL_COD1?.text()
+            customerRegion = customer.REGION?.text()
+            customerCountry = customer.COUNTRY1?.text()
+
+        }
+
+        delivery = (it.'**'.find{node-> node.name() == 'E1EDT13' && node.QUALF == '007'})
+        if (delivery)
+        {
+            deliveryDate = delivery.NTANF?.text()
+            deliveryTime = delivery.NTANZ?.text()
+        }
+
+        if((it.'**'.find{node-> node.name() == 'E1EDL44'}))
+        {
+            plant = (it.'**'.find{node-> node.name() == 'E1EDL44'}.WERKS?.text())
+        }
+        else plant =""
+		
+		
+        if((it.'**'.find{node-> node.name() == 'E1EDL44'}) && (it.'**'.find{node-> node.name() == 'E1EDL20'}))
+        {
+			if((it.'**'.find{node-> node.name() == 'E1EDL44'}.ZSITE_TT?.text() == '01') && (it.'**'.find{node-> node.name() == 'E1EDL20'}.ZZ_TT_RELEVANCY?.text() == 'X'))
+			{
+				customerCommOpt = "false"
+			}
+			else customerCommOpt ="true"
+		}
+        else customerCommOpt ="true"
+		        
+    }
+
+    //Converting  delivery date + time passed in idoc to correct datetime format
+
+    def deliveryDateTimeLocal = Date.parse('yyyyMMddHHmmss',deliveryDate+deliveryTime).format("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+    
+    
+    // JSON builder for generating outbound json 
+    def builder = new JsonBuilder(
+    jobs: [
+        [
+            address: [
+                country: customerCountry,
+                locality: customerLocality,
+                postcode: customerPostcode,
+                region: customerRegion,
+                streetAddress: customerStreetAddress,
+                subStreetAddress: customerSubStreetAddress
+            ],
+            id: deliveryNo,
+            status: 'PENDING',
+            stopId: stopID,
+            branchId: plant,
+            fulfiller: carrierID,
+            orderType: deliveryType,
+            deliveryDate: deliveryDateTimeLocal,
+            attributes: [ fulfillerName: carrierName],
+            customer: [
+                id: customerID,
+                email: customerEmail,
+                firstName: customerFname,
+                lastName: customerLname,
+                phone: customerMobile,
+                title: customerTitle
+            ],     
+            secondaryReference: secondaryReference, 
+            commsOptOut: customerCommOpt  			
+        ]
+    ]
+ )
+
+    message.setBody(builder.toPrettyString())
+
+return message
+}
