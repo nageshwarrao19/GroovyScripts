@@ -1,0 +1,205 @@
+/*Below script takes XML input and transforms it to JSON  */
+
+/*
+
+Source XML = 
+<IsOrderHeaderSet>
+    <IsOrderHeader>
+        <PriceDate>0000-00-00</PriceDate>
+        <ReqDateH>0000-00-00</ReqDateH>
+        <DistrChan></DistrChan>
+        <CurrIso></CurrIso>
+        <PurchNoC></PurchNoC>
+        <SalesOrg></SalesOrg>
+        <ItOrderSchedLinesSet/>
+        <RefObjKey>1234</RefObjKey>
+        <Division></Division>
+        <DocType></DocType>
+        <ItOrderItemsSet>
+            <ItOrderItems>
+                <Discount>-1.470000000</Discount>
+                <TotalPriceIncGST>6.460000000</TotalPriceIncGST>
+                <CondUnit>EA</CondUnit>
+                <ReqQty>1.000</ReqQty>
+                <SalesUnit>EA</SalesUnit>
+                <GST>0.590000000</GST>
+                <Material>62004912-250ML</Material>
+                <Plant>VC13</Plant>
+                <NetPrice>5.870000000</NetPrice>
+                <DocNumber>10</DocNumber>
+                <Currency>AUD</Currency>
+                <NetValue>5.870000000</NetValue>
+                <ItmNumber>000010</ItmNumber>
+            </ItOrderItems>
+            <ItOrderItems>
+                <Discount>0E-9</Discount>
+                <TotalPriceIncGST>77.000000000</TotalPriceIncGST>
+                <CondUnit>EA</CondUnit>
+                <ReqQty>1.000</ReqQty>
+                <SalesUnit>EA</SalesUnit>
+                <GST>7.000000000</GST>
+                <Material>51WD0072-4L</Material>
+                <Plant>VC13</Plant>
+                <NetPrice>70.000000000</NetPrice>
+                <DocNumber>20</DocNumber>
+                <Currency>AUD</Currency>
+                <NetValue>70.000000000</NetValue>
+                <ItmNumber>000020</ItmNumber>
+            </ItOrderItems>
+        </ItOrderItemsSet>
+        <ItOrderPartnersSet/>
+        <EsSalesOrderDataSet>
+            <EsSalesOrderData>
+                <GrossValHd>0E-9</GrossValHd>
+                <Refobjkey>dummy</Refobjkey>
+                <TaxAmountHd>0E-9</TaxAmountHd>
+                <NetValHd>0E-9</NetValHd>
+                <CreditExposureAmt>10.0000</CreditExposureAmt>
+            </EsSalesOrderData>
+            <EsSalesOrderData>
+                <GrossValHd>83.460000000</GrossValHd>
+                <Refobjkey>1234</Refobjkey>
+                <TaxAmountHd>7.590000000</TaxAmountHd>
+                <NetValHd>75.870000000</NetValHd>
+                <CreditExposureAmt>0.0000</CreditExposureAmt>
+            </EsSalesOrderData>
+        </EsSalesOrderDataSet>
+    </IsOrderHeader>
+</IsOrderHeaderSet>
+
+
+Target JSON = 
+{
+    "RefObjKey": "1234",
+    "ReqDateH": "0000-00-00",
+    "PriceDate": "0000-00-00",
+    "DistrChan": "",
+    "CurrIso": "",
+    "PurchNoC": "",
+    "SalesOrg": "",
+    "Division": "",
+    "DocType": "",
+    "ItOrderItemsSet": [
+        {
+            "DocNumber": "10",
+            "ItmNumber": "000010",
+            "ReqQty": "1.000",
+            "Material": "62004912-250ML",
+            "SalesUnit": "EA",
+            "NetPrice": "5.870000000",
+            "Plant": "VC13",
+            "NetValue": "5.870000000",
+            "Currency": "AUD",
+            "CondUnit": "EA",
+            "GST": "0.590000000",
+            "TotalPriceIncGST": "6.460000000",
+            "Discount": "-1.470000000"
+        },
+        {
+            "DocNumber": "20",
+            "ItmNumber": "000020",
+            "ReqQty": "1.000",
+            "Material": "51WD0072-4L",
+            "SalesUnit": "EA",
+            "NetPrice": "70.000000000",
+            "Plant": "VC13",
+            "NetValue": "70.000000000",
+            "Currency": "AUD",
+            "CondUnit": "EA",
+            "GST": "7.000000000",
+            "TotalPriceIncGST": "77.000000000",
+            "Discount": "0E-9"
+        }
+    ],
+    "EsSalesOrderDataSet": {
+        "Refobjkey": "1234",
+        "GrossValHd": "83.460000000",
+        "TaxAmountHd": "7.590000000",
+        "NetValHd": "75.870000000",
+        "CreditExposureAmt": "0.0000"
+    }
+}
+
+
+*/
+
+
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.json.JsonBuilder;
+
+def Message processData(Message message) {
+    
+    //Body 
+    Reader reader = message.getBody(Reader)
+
+    // Define XML parser for parsing inbound XML
+    def parsedPricingXML = new XmlSlurper().parse(reader)
+    def pricingJSON = buildPricingJSON(parsedPricingXML)
+    message.setBody(pricingJSON);
+    return message
+}
+
+// Function to build pricing JSON to be passed from response XML received from Odata Adapter
+def buildPricingJSON(parsedPricingXML){
+
+      def RefObjKey, ReqDateH, PriceDate, DistrChan, CurrIso, PurchNoC, SalesOrg, Division, DocType
+
+      //Handling XML Node IsOrderHeader
+      parsedPricingXML.depthFirst().find{ node -> (node.name() == 'IsOrderHeader')}.each
+      {
+            RefObjKey = it.RefObjKey?.text()
+            ReqDateH = it.ReqDateH?.text()
+            PriceDate = it.PriceDate?.text()
+            DistrChan = it.DistrChan?.text()
+            CurrIso = it.CurrIso?.text()
+            PurchNoC = it.PurchNoC?.text()
+            SalesOrg = it.SalesOrg?.text()
+            Division = it.Division?.text()
+            DocType = it.DocType?.text()
+      }
+
+      //Handling XML Node ItOrderItemsSet
+      def ItOrderItems = []
+      parsedPricingXML.depthFirst().findAll{ node -> (node.name() == 'ItOrderItems')}.each
+      {     
+            def ordItems = [DocNumber: it.DocNumber?.text(), ItmNumber: it.ItmNumber?.text(), ReqQty: it.ReqQty?.text(), Material: it.Material?.text(), SalesUnit: it.SalesUnit?.text(), NetPrice:it.NetPrice?.text(), Plant:it.Plant?.text(),
+            NetValue: it.NetValue?.text(), Currency:it.Currency?.text(), CondUnit: it.CondUnit?.text(), GST:it.GST?.text(), TotalPriceIncGST: it.TotalPriceIncGST?.text(), Discount : it.Discount.text()]
+            ItOrderItems.add(ordItems)
+      }
+
+      //Handling XML Node EsSalesOrderDataSet (selecting only the matching one with refobjkey)
+      def GrossValHd, TaxAmountHd, NetValHd, CreditExposureAmt
+      parsedPricingXML.depthFirst().findAll{ node -> (node.name() == 'EsSalesOrderData') && node.Refobjkey == RefObjKey}.each
+      {     
+            GrossValHd = it.GrossValHd?.text()
+            TaxAmountHd = it.TaxAmountHd?.text()
+            NetValHd = it.NetValHd?.text()
+            CreditExposureAmt = it.CreditExposureAmt?.text()
+      }
+
+
+      // JSON builder for generating outbound json 
+      def builder = new JsonBuilder(
+            RefObjKey: RefObjKey,
+            ReqDateH: ReqDateH,
+            PriceDate: PriceDate,
+            DistrChan: DistrChan,
+            CurrIso: CurrIso,
+            PurchNoC: PurchNoC,
+            SalesOrg: SalesOrg,
+            Division: Division,
+            DocType: DocType, 
+            ItOrderItemsSet: ItOrderItems.collect{ it },
+            EsSalesOrderDataSet: [
+                  Refobjkey: RefObjKey,
+                  GrossValHd:  GrossValHd,
+                  TaxAmountHd: TaxAmountHd,
+                  NetValHd: NetValHd,
+                  CreditExposureAmt: CreditExposureAmt
+            ]
+      )
+      
+      return builder.toPrettyString()
+
+}
