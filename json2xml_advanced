@@ -1,0 +1,257 @@
+/*Below script takes JSON req input and transforms it to XML to pass to Odata Receiver Adapter on CPI. */
+/*
+Source JSON =
+{
+  "DocType": "ZSOR",
+  "DistrChan": "DS",
+  "Division": "50",
+  "SalesOrg": "AU10",
+  "ReqDateH": "0000-00-00",
+  "PriceDate": "0000-00-00",
+  "CurrIso": "AUD",
+  "ItOrderItemsSet": [
+    {
+      "ItmNumber": "10",
+      "Material": "62004912-250ML",
+      "SalesUnit": "EA",
+      "Plant": "VC13"
+    },
+    {
+      "ItmNumber": "20",
+      "Material": "51WD0072-4L",
+      "SalesUnit": "EA",
+      "Plant": "VC13"
+    }
+  ],
+    "EsSalesOrderDataSet": {
+        "Refobjkey": "1234",
+        "GrossValHd": "83.460000000",
+        "TaxAmountHd": "7.590000000",
+        "NetValHd": "75.870000000",
+        "CreditExposureAmt": "0.0000"
+    },
+  "ItOrderPartnersSet": [
+    {
+      "PartnRole": "AG",
+      "PartnNumb": "0000203509",
+      "ItmNumber": "000000"
+    }
+  ],
+  "ItOrderSchedLinesSet": [
+    {
+      "ItmNumber": "10",
+      "SchedLine": "0001",
+      "ReqQty": "1"
+    },
+    {
+      "ItmNumber": "20",
+      "SchedLine": "0001",
+      "ReqQty": "1"
+    }
+  ]
+}
+
+Target XML =
+<IsOrderHeaderSet>
+  <IsOrderHeader>
+    <PriceDate>0000-00-00</PriceDate>
+    <ReqDateH>0000-00-00</ReqDateH>
+    <DistrChan>DS</DistrChan>
+    <CurrIso>AUD</CurrIso>
+    <PurchNoC />
+    <SalesOrg>AU10</SalesOrg>
+    <RefObjKey />
+    <Division>50</Division>
+    <DocType>ZSOR</DocType>
+    <ItOrderSchedLinesSet>
+      <ItOrderSchedLines>
+        <SchedLine>0001</SchedLine>
+        <RefObjKey />
+        <ReqQty>1</ReqQty>
+        <ItmNumber>10</ItmNumber>
+        <ReqDate />
+      </ItOrderSchedLines>
+      <ItOrderSchedLines>
+        <SchedLine>0001</SchedLine>
+        <RefObjKey />
+        <ReqQty>1</ReqQty>
+        <ItmNumber>20</ItmNumber>
+        <ReqDate />
+      </ItOrderSchedLines>
+    </ItOrderSchedLinesSet>
+    <ItOrderItemsSet>
+      <ItOrderItems>
+        <Plant>VC13</Plant>
+        <CondUnit />
+        <DocNumber />
+        <Material>62004912-250ML</Material>
+        <ItmNumber>10</ItmNumber>
+        <ReqQty />
+        <SalesUnit>EA</SalesUnit>
+        <NetPrice />
+        <NetValue />
+        <Currency />
+        <GST />
+        <TotalPriceIncGST />
+        <Discount />
+      </ItOrderItems>
+      <ItOrderItems>
+        <Plant>VC13</Plant>
+        <CondUnit />
+        <DocNumber />
+        <Material>51WD0072-4L</Material>
+        <ItmNumber>20</ItmNumber>
+        <ReqQty />
+        <SalesUnit>EA</SalesUnit>
+        <NetPrice />
+        <NetValue />
+        <Currency />
+        <GST />
+        <TotalPriceIncGST />
+        <Discount />
+      </ItOrderItems>
+    </ItOrderItemsSet>
+    <ItOrderPartnersSet>
+      <ItOrderPartners>
+        <PartnRole>AG</PartnRole>
+        <PartnNumb>0000203509</PartnNumb>
+        <RefObjKey />
+        <ItmNumber>000000</ItmNumber>
+      </ItOrderPartners>
+    </ItOrderPartnersSet>
+    <EsSalesOrderDataSet>
+      <EsSalesOrderData>
+        <Refobjkey>1234</Refobjkey>
+        <NetValHd>75.870000000</NetValHd>
+        <GrossValHd>83.460000000</GrossValHd>
+        <TaxAmountHd>7.590000000</TaxAmountHd>
+        <CreditExposureAmt>0.0000</CreditExposureAmt>
+      </EsSalesOrderData>
+    </EsSalesOrderDataSet>
+  </IsOrderHeader>
+</IsOrderHeaderSet>
+
+
+
+
+
+
+
+
+
+
+
+*/
+
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.xml.MarkupBuilder;
+import groovy.json.*;
+
+def Message processData(Message message) {
+    
+    def body = message.getBody(String)
+    Map parsedJSON = new JsonSlurper().parseText(body)
+    def pricingXML = ""
+    pricingXML = buildPricingXML(parsedJSON)
+    message.setBody(pricingXML);
+    return message
+}
+
+
+// Function to build pricing XML to be passed to Odata Receiver Adapter
+def buildPricingXML(parsedJSON){
+
+      def docType = parsedJSON.DocType
+      def distrChan = parsedJSON.DistrChan
+      def division = parsedJSON.Division
+      def salesOrg = parsedJSON.SalesOrg
+      def purchNoC = parsedJSON.PurchNoC
+      def reqDateH = parsedJSON.ReqDateH
+      def priceDate = parsedJSON.PriceDate
+      def currIso = parsedJSON.CurrIso
+      def refObjKey = parsedJSON.RefObjKey
+      def itOrderItemsSet = parsedJSON.ItOrderItemsSet
+      def itOrderPartnersSet = parsedJSON.ItOrderPartnersSet
+      def itOrderSchedLinesSet = parsedJSON.ItOrderSchedLinesSet
+      def esSalesOrderDataSet = parsedJSON.EsSalesOrderDataSet     
+
+      //XML Builder
+      def stringWriter = new StringWriter()
+      def pricingXMLBuilder = new MarkupBuilder(stringWriter)
+      pricingXMLBuilder.IsOrderHeaderSet {            
+          IsOrderHeader{
+            PriceDate(priceDate)
+            ReqDateH(reqDateH)
+            DistrChan(distrChan)
+            CurrIso(currIso)
+            PurchNoC(purchNoC)
+            SalesOrg(salesOrg)
+            RefObjKey(refObjKey)
+            Division(division)
+            DocType(docType)
+            ItOrderSchedLinesSet{
+                  itOrderSchedLinesSet.each{ ItOrderSchedLinesIT ->
+                        ItOrderSchedLines{
+                              SchedLine(ItOrderSchedLinesIT.SchedLine)
+                              RefObjKey(ItOrderSchedLinesIT.RefObjKey)
+                              ReqQty(ItOrderSchedLinesIT.ReqQty)
+                              ItmNumber(ItOrderSchedLinesIT.ItmNumber)
+                              ReqDate(ItOrderSchedLinesIT.ReqDate)
+                        }
+                  }
+            }                                   
+            ItOrderItemsSet{
+                  itOrderItemsSet.each{ itOrderItemsSetIT ->
+                        ItOrderItems{
+                              Plant(itOrderItemsSetIT.Plant)
+                              CondUnit(itOrderItemsSetIT.CondUnit)
+                              DocNumber(itOrderItemsSetIT.DocNumber)
+                              Material(itOrderItemsSetIT.Material)
+                              ItmNumber(itOrderItemsSetIT.ItmNumber)
+                              ReqQty(itOrderItemsSetIT.ReqQty)
+                              SalesUnit(itOrderItemsSetIT.SalesUnit)
+                              NetPrice(itOrderItemsSetIT.NetPrice)
+                              NetValue(itOrderItemsSetIT.NetValue)
+                              Currency(itOrderItemsSetIT.Currency)
+                              GST(itOrderItemsSetIT.GST)
+                              TotalPriceIncGST(itOrderItemsSetIT.TotalPriceIncGST)
+                              Discount(itOrderItemsSetIT.Discount)
+                        }
+                  }
+            }
+            ItOrderPartnersSet{
+                  itOrderPartnersSet.each{ itOrderPartnersIT ->
+                        ItOrderPartners{
+                              PartnRole(itOrderPartnersIT.PartnRole)
+                              PartnNumb(itOrderPartnersIT.PartnNumb)
+                              RefObjKey(itOrderPartnersIT.RefObjKey)
+                              ItmNumber(itOrderPartnersIT.ItmNumber)
+                        }
+                  }
+            }
+            EsSalesOrderDataSet{
+                  if(esSalesOrderDataSet != null)
+                  {
+                        EsSalesOrderData{
+                              Refobjkey(esSalesOrderDataSet.Refobjkey)
+                              NetValHd(esSalesOrderDataSet.NetValHd)
+                              GrossValHd(esSalesOrderDataSet.GrossValHd)
+                              TaxAmountHd(esSalesOrderDataSet.TaxAmountHd)
+                              CreditExposureAmt(esSalesOrderDataSet.CreditExposureAmt)
+                        }
+                  }else 
+                  {     
+                        EsSalesOrderData{
+                              Refobjkey("dummy")
+                              CreditExposureAmt("10")
+                        }
+                  }
+            }
+          }
+      }
+      pricingXML = stringWriter.toString()
+
+      return pricingXML
+
+}
